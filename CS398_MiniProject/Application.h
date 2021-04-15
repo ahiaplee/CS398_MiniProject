@@ -51,6 +51,8 @@ struct NormalObject
 	float mass = 1.0f;
 
 	float color[4] = { 1.0f,1.0f,1.0f,1.0f };
+	float basecolor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	float altcolor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 };
 
 struct RenderData
@@ -94,6 +96,9 @@ private:
 	size_t N = 1000;
 	float G = /*6.673e-4f*/ 52017.875f;
 	float solarMass = 1.98892e-3f;
+
+	bool useBaseColor = false;
+	glm::vec3 endColor = glm::vec3{ 0.0f, 0.1843f, 0.4235f };
 
 	std::unordered_map<ShaderTypes, std::unique_ptr<Shader>> _shaders;
 

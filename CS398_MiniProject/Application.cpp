@@ -303,6 +303,10 @@ void Application::GUI()
     const char* NValues[4] = { "100", "500", "1000", "5000" };
     static const char* NCurrent = "1000";
     static int currIndex = 2;
+
+    static bool colorGradient = false;
+    static float editablebaseColor[3] = { 0.0f, 0.4843f, 0.7235f };
+
     if (ImGui::Begin("Tools"))
     {
         ImGui::Text("FPS: %f", _fps);
@@ -321,6 +325,37 @@ void Application::GUI()
                 }
             }
             ImGui::EndCombo();
+        }
+        if (ImGui::Checkbox("Display Mass Gradient", &colorGradient) && colorGradient != useBaseColor)
+        {
+            useBaseColor = colorGradient;
+
+            if(useBaseColor)
+                for (auto& obj : _objects)
+                {
+                    obj->color[0] = obj->basecolor[0];
+                    obj->color[1] = obj->basecolor[1];
+                    obj->color[2] = obj->basecolor[2];
+                    obj->color[3] = obj->basecolor[3];
+                }
+            else
+                for (auto& obj : _objects)
+                {
+                    obj->color[0] = obj->altcolor[0];
+                    obj->color[1] = obj->altcolor[1];
+                    obj->color[2] = obj->altcolor[2];
+                    obj->color[3] = obj->altcolor[3];
+                }
+        }
+        if (colorGradient) 
+        {
+            ImGui::Text("The closer in mass to the central object, the lighter the color");
+            ImGui::Text("Hover the colors below for details");
+            ImGui::ColorButton("Central Object", ImVec4{ 1.0f, 0.64f, 0.55f, 1.0f });
+            ImGui::SameLine();
+            ImGui::ColorButton("Heavy Object", ImVec4{ 1.0f, 1.0f, 1.0f, 1.0f });
+            ImGui::SameLine();
+            ImGui::ColorButton("Light Object", ImVec4{ endColor.r, endColor.g, endColor.b, 1.0f });
         }
     }
     ImGui::End();
@@ -358,11 +393,30 @@ void Application::InitNBody()
     auto first = std::make_unique<NormalObject>();
     first->translate = glm::vec3{ 0.0f, 0.0f, 0.0f };
     first->velocity = glm::vec2{ 0.0f, 0.0f };
-    first->mass = solarMass;
-    first->color[0] = 1.0f;
-    first->color[1] = 1.0f;
-    first->color[2] = 1.0f;
-    first->color[3] = 1.0f;
+    first->mass = solarMass; 
+    first->altcolor[0] = 1.0f;
+    first->altcolor[1] = 1.0f;
+    first->altcolor[2] = 1.0f;
+    first->altcolor[3] = 1.0f;
+    first->basecolor[0] = 1.0f;
+    first->basecolor[1] = 0.64f;
+    first->basecolor[2] = 0.55f;
+    first->basecolor[3] = 1.0f; /* obj color w gradient */
+    if (useBaseColor)
+    {
+        first->color[0] = first->basecolor[0];
+        first->color[1] = first->basecolor[1];
+        first->color[2] = first->basecolor[2];
+        first->color[3] = first->basecolor[3];
+    }
+    else
+    {
+        first->color[0] = first->altcolor[0];
+        first->color[1] = first->altcolor[1];
+        first->color[2] = first->altcolor[2];
+        first->color[3] = first->altcolor[3];
+    }
+
     _objects.push_back(std::move(first));
 
     for (size_t i = 1; i < N; ++i)
@@ -378,11 +432,9 @@ void Application::InitNBody()
         //obj->color[2] = RAND_FLOAT(0.0f, 1.0f);
         //obj->color[3] = 1.0f;
 
-        // swap btw 1e2f and 1e3f both look okay
         float pvCoefficient = 1e2f * EXP(-1.8f);
         glm::vec2 pv{ RAND_FLOAT(-0.5f, 0.5f), RAND_FLOAT(-0.5f, 0.5f) };
         glm::vec2 position = pvCoefficient * pv;
-        //std::cout << "Index " << i << ": (" << position.x << ", " << position.y << ")" << std::endl;
         obj->translate = glm::vec3{ position, 0.0f }; /* obj translate */
         float magnitude = InitialForceCalcNormalObject(position);
 
@@ -398,10 +450,31 @@ void Application::InitNBody()
 
         float massConstant = solarMass * 10.0f;
         float colorCoefficient = floorf(obj->mass * 254.0f / massConstant) / 255.0f;
-        obj->color[0] = colorCoefficient * RAND_FLOAT(0.0f, 1.0f);
-        obj->color[1] = colorCoefficient * RAND_FLOAT(0.0f, 1.0f);
-        obj->color[2] = colorCoefficient * RAND_FLOAT(0.0f, 1.0f);
-        obj->color[3] = 1.0f; /* obj color */
+
+        obj->altcolor[0] = colorCoefficient * RAND_FLOAT(0.0f, 1.0f);
+        obj->altcolor[1] = colorCoefficient * RAND_FLOAT(0.0f, 1.0f);
+        obj->altcolor[2] = colorCoefficient * RAND_FLOAT(0.0f, 1.0f);
+        obj->altcolor[3] = 1.0f; /* obj color */
+
+        obj->basecolor[0] = 1.0f - colorCoefficient + colorCoefficient * endColor.r;
+        obj->basecolor[1] = 1.0f - colorCoefficient + colorCoefficient * endColor.g;
+        obj->basecolor[2] = 1.0f - colorCoefficient + colorCoefficient * endColor.b;
+        obj->basecolor[3] = 1.0f; /* obj color w gradient */
+
+        if (useBaseColor)
+        {
+            obj->color[0] = obj->basecolor[0];
+            obj->color[1] = obj->basecolor[1];
+            obj->color[2] = obj->basecolor[2];
+            obj->color[3] = obj->basecolor[3];
+        }
+        else
+        {
+            obj->color[0] = obj->altcolor[0];
+            obj->color[1] = obj->altcolor[1];
+            obj->color[2] = obj->altcolor[2];
+            obj->color[3] = obj->altcolor[3];
+        }
 
         _objects.push_back(std::move(obj));
     }
