@@ -98,7 +98,7 @@ private:
 	glm::mat4 projection;
 	glm::mat4 view;
 
-	glm::vec3 eye{ 0,0, 25.0f };
+	glm::vec3 eye{ 0,0, 100.0f };
 	glm::vec3 target{ 0,0,0 };
 
 	size_t N = 1000;
@@ -125,11 +125,13 @@ private:
 
 	bool use_cuda = false;
 	bool use_changed = false;
+	bool pause = false;
+	bool view_changed = false;
 	NormalObject* d_Objects = 0;
 	cudaGraphicsResource* resources[1];
 	void Print_GPU_Info();
 	void Init_CudaResource(InstancedObject& obj);
-
+	void Reset();
 
 	std::vector<NormalObject> copy_objs;
 	dim3 DimBlock;
@@ -167,7 +169,11 @@ void compute_cuda(
 	cudaGraphicsResource* resource,
 	uint max_objects,
 	dim3& DimBlock,
-	dim3& DimGrid2
+	dim3& DimGrid2,
+	size_t N,
+	float G,
+	float _deltaTime,
+	bool _useBaseColor
 );
 
 

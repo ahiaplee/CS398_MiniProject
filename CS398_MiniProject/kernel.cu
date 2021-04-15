@@ -11,49 +11,71 @@
 //	getLastCudaError("map_resource failed\n");
 //}
 
+__device__ void GPU_AddForceNormalObject(NormalObject& obja, NormalObject& objb, float G)
+{
+	static float softeningsq = 3.0f * 3.0f;
+	glm::vec2 difference = objb.translate - obja.translate;
+	float magnitudesq = difference.x * difference.x + difference.y * difference.y;
+	float F = (G * obja.mass * objb.mass) / (magnitudesq + softeningsq);
+	obja.force += F / sqrtf(magnitudesq) * difference;
+}
+
+__device__ void UpdateNormalObject(NormalObject& obj, float _deltaTime)
+{
+	obj.velocity += (float)_deltaTime * obj.force;
+	obj.translate += (float)_deltaTime * glm::vec3(obj.velocity.x, obj.velocity.y, 0.0f);
+}
+
 __global__ void compute_kernel(
 	NormalObject* d_Objects,
-	RenderData* cuda_data
+	RenderData* cuda_data,
+	size_t N,
+	float G,
+	float _deltaTime,
+	bool _useBaseColor
 	//,
 	//cudaGraphicsResource* resource,
 	//uint max_objects
 )
 {
-
-
-	//printf("im running %d %d %d \n", blockIdx.x , blockDim.x , threadIdx.x);
-	//printf("im running %d %d %d \n", blockIdx.y , blockDim.y , threadIdx.y);
 	uint x = blockIdx.x * blockDim.x + threadIdx.x;
 	uint y = blockIdx.y * blockDim.y + threadIdx.y;
 
 	RenderData& data = cuda_data[x];
-	
 	NormalObject* obj = &(d_Objects[x]);
 
 
-	//printf("Can access @ %p\n", cuda_data);
+	obj->force = glm::vec2(0.0f, 0.0f);
+	for (size_t j = 0; j < N; ++j)
+		if (x != j) GPU_AddForceNormalObject(d_Objects[x], d_Objects[j], G);
+
+
+	UpdateNormalObject(d_Objects[x], _deltaTime);
 	
 	data.transform = glm::mat4(1.0f);
 	data.transform = glm::scale(data.transform, obj->scale);
 	data.transform = glm::rotate(data.transform, glm::radians(obj->rotate), glm::vec3(0.0, 0.0, 1.0));
 	data.transform = glm::translate(data.transform, obj->translate);
-	data.color[0] = 1.0f;
-	data.color[1] = 0.0f;
-	data.color[2] = 0.0f;
-	data.color[3] = 1.0f;
 
-	//auto ptr = glm::value_ptr(data.transform);
+	if (_useBaseColor)
+	{
+		data.color[0] = obj->basecolor[0];
+		data.color[1] = obj->basecolor[1];
+		data.color[2] = obj->basecolor[2];
+		data.color[3] = obj->basecolor[3];
+	}
+	else
+	{
+		data.color[0] = obj->altcolor[0];
+		data.color[1] = obj->altcolor[1];
+		data.color[2] = obj->altcolor[2];
+		data.color[3] = obj->altcolor[3];
+	}
+	//data.color[0] = 1.0f;
+	//data.color[1] = 0.0f;
+	//data.color[2] = 0.0f;
+	//data.color[3] = 1.0f;
 
-	//for (int i = 0; i < 16; i += 4)
-	//{
-	//	printf("%f %f %f %f \n", ptr[i], ptr[i + 1], ptr[i + 2], ptr[i + 3]);
-	//}
-	//printf("==========\n");
-
-
-	//printf("im running");
-
-	//if(y )
 }
 
 void compute_cuda(
@@ -61,7 +83,11 @@ void compute_cuda(
 	cudaGraphicsResource* resource,
 	uint max_objects,
 	dim3& DimBlock,
-	dim3& DimGrid2
+	dim3& DimGrid2,
+	size_t N,
+	float G,
+	float _deltaTime,
+	bool _useBaseColor
 )
 {
 	RenderData* cuda_data;
@@ -73,7 +99,11 @@ void compute_cuda(
 	compute_kernel << < DimGrid2, DimBlock >> >
 		(
 			d_Objects,
-			cuda_data
+			cuda_data,
+			N,
+			G,
+			_deltaTime,
+			_useBaseColor
 			//resource,
 			//max_objects,
 		);

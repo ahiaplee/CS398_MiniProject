@@ -1,5 +1,7 @@
 #include "Application.h"
 
+float camera_speed = 100.0f;
+
 Application::Application(int width, int height, const std::string& window_title):
 	_width {width},
 	_height { height },
@@ -24,7 +26,7 @@ Application::~Application()
 
 void Application::Start()
 {
-    use_cuda = true;
+    use_cuda = false;
     Print_GPU_Info();
 
     glfwInit();
@@ -76,30 +78,10 @@ void Application::Start()
     _shaders[DEFAULT_INSTANCED]->setMat4("projection", glm::value_ptr(projection));
     _shaders[DEFAULT_INSTANCED]->setMat4("view", glm::value_ptr(view));
     
-    //hardcode object to test draw
-    //for (int i = 0; i < N; ++i)
-    //{
-    //    auto obj = std::make_unique<NormalObject>();
-    //    obj->translate = glm::vec3{
-    //        RAND_FLOAT (-100.0f, 100.0f),
-    //        RAND_FLOAT (-100.0f, 100.0f),
-    //        0.0f//RAND_FLOAT (-10.0f, 10.0f)
-    //    };
-    //    obj->color[0] = RAND_FLOAT(0.0f, 1.0f);
-    //    obj->color[1] = RAND_FLOAT(0.0f, 1.0f);
-    //    obj->color[2] = RAND_FLOAT(0.0f, 1.0f);
-    //    obj->color[3] = 1.0f;
-    //    _objects.push_back(std::move(obj));
-    //}
     InitNBody();
 
    
     Init_RenderObject(_InstancedObject); 
-
-
-    //cudaGraphicsMapResources(1, resources);
-    //map_resource(resources[0]);
-    //cudaGraphicsUnmapResources(1, resources);
 }
 
 void Application::Print_GPU_Info()
@@ -128,21 +110,12 @@ void Application::Init_CudaResource(InstancedObject& objs)
         1,
         1);
 
-
-
-
     auto size = _objects.size() * sizeof(NormalObject);
-
-
-
 
     checkCudaErrors(cudaMalloc((void**)&d_Objects, size));
     checkCudaErrors(cudaMemcpy(d_Objects, copy_objs.data(), size, cudaMemcpyHostToDevice));
-    cudaDeviceSynchronize();
-
+    checkCudaErrors(cudaDeviceSynchronize());
     checkCudaErrors(cudaGraphicsGLRegisterBuffer(resources, objs.transforms, cudaGraphicsMapFlagsNone));
-
-    std::cout << "test" << std::endl;
 
 }
 
@@ -182,6 +155,19 @@ void Application::Run()
         _deltaTime = endTime - _startTime;
         _fps = 1 / _deltaTime;
     }
+}
+
+void Application::Reset()
+{
+    InitNBody();
+    Rebind_RenderObject(_InstancedObject);
+
+
+    if (use_cuda)
+        Init_CudaResource(_InstancedObject);
+
+
+    use_changed = false;
 }
 
 void Application::InputProcess(GLFWwindow* window)
@@ -315,30 +301,44 @@ void Application::PrintErrors()
 
 void Application::Update()
 {
-    bool view_changed = false;
+    
+
+    if (glfwGetKey(_window, GLFW_KEY_Q) == GLFW_PRESS)
+    {
+        eye.z -= camera_speed * _deltaTime;
+        view_changed = true;
+    }
+    if (glfwGetKey(_window, GLFW_KEY_E) == GLFW_PRESS)
+    {
+        eye.z += camera_speed * _deltaTime;
+        view_changed = true;
+    }
 
     if (glfwGetKey(_window, GLFW_KEY_W) == GLFW_PRESS)
     {
-        eye.z -= 0.05f;
+        eye.y += camera_speed * _deltaTime;
+        target.y += camera_speed * _deltaTime;
         view_changed = true;
     }
+
     if (glfwGetKey(_window, GLFW_KEY_S) == GLFW_PRESS)
     {
-        eye.z += 0.05f;
+        eye.y -= camera_speed * _deltaTime;
+        target.y -= camera_speed * _deltaTime;
         view_changed = true;
     }
 
     if (glfwGetKey(_window, GLFW_KEY_A) == GLFW_PRESS)
     {
-        eye.x -= 0.05f;
-        target.x -= 0.05f;
+        eye.x -= camera_speed * _deltaTime;
+        target.x -= camera_speed * _deltaTime;
         view_changed = true;
     }
 
     if (glfwGetKey(_window, GLFW_KEY_D) == GLFW_PRESS)
     {
-        eye.x += 0.05f;
-        target.x += 0.05f;
+        eye.x += camera_speed * _deltaTime;
+        target.x += camera_speed * _deltaTime;
         view_changed = true;
     }
 
@@ -351,18 +351,12 @@ void Application::Update()
         );
     }
 
-    UpdateNBody();
+    if(!pause && !use_cuda)
+        UpdateNBody();
 
     if (use_changed)
     {
-        Rebind_RenderObject(_InstancedObject);
-
-
-        if (use_cuda)
-            Init_CudaResource(_InstancedObject);
-
-
-        use_changed = false;
+        Reset();
     }
 
 }
@@ -408,14 +402,17 @@ void Application::Draw_Cuda()
     _shaders[DEFAULT_INSTANCED]->setMat4("projection", glm::value_ptr(projection));
 
     //RenderData* datas;
-    cudaGraphicsMapResources(1, resources);
-   // map_resource(resources[0]);
 
-    compute_cuda
+    if (!pause)
+    {
+        cudaGraphicsMapResources(1, resources);
+        compute_cuda
         (
-            d_Objects, resources[0], _objects.size(), DimBlock, DimGrid2
+            d_Objects, resources[0], _objects.size(), DimBlock, DimGrid2, N, G, _deltaTime, useBaseColor
         );
-    cudaGraphicsUnmapResources(1, resources);
+        cudaGraphicsUnmapResources(1, resources);
+    }
+
     
 
     glBindVertexArray(_InstancedObject.VAO);
@@ -437,6 +434,22 @@ void Application::GUI()
     {
         ImGui::Text("FPS: %f", _fps);
         ImGui::Text("Frame Time: %f", _deltaTime);
+
+        ImGui::Text("WASD to move");
+        ImGui::Text("Q & E to adjust zoom");
+
+        ImGui::Separator();
+        if (ImGui::Checkbox("Use CUDA", &use_cuda))
+        {
+            use_changed = true;
+
+        }
+        if (ImGui::Checkbox("Pause", &pause))
+        {
+            //use_changed = true;
+
+        }
+        
         if (ImGui::BeginCombo("N Value", NCurrent))
         {
             for (int i = 0; i < 4; ++i)
@@ -446,8 +459,8 @@ void Application::GUI()
                     currIndex = i;
                     NCurrent = NValues[i];
                     N = NValuesAvail[i];
-                    _objects.clear();
-                    InitNBody();
+                    _objects.clear();              
+                    Reset();
                 }
             }
             ImGui::EndCombo();
@@ -456,7 +469,7 @@ void Application::GUI()
         {
             useBaseColor = colorGradient;
 
-            if(useBaseColor)
+            if (useBaseColor)
                 for (auto& obj : _objects)
                 {
                     obj->color[0] = obj->basecolor[0];
@@ -473,7 +486,7 @@ void Application::GUI()
                     obj->color[3] = obj->altcolor[3];
                 }
         }
-        if (colorGradient) 
+        if (colorGradient)
         {
             ImGui::Text("The closer in mass to the central object, the lighter the color");
             ImGui::Text("Hover the colors below for details");
@@ -483,13 +496,11 @@ void Application::GUI()
             ImGui::SameLine();
             ImGui::ColorButton("Light Object", ImVec4{ endColor.r, endColor.g, endColor.b, 1.0f });
 
-        if (ImGui::Checkbox("Use cuda", &use_cuda))
-        {
-            use_changed = true;
 
         }
+
+        ImGui::End();
     }
-    ImGui::End();
 }
 
 // individual body functions
@@ -518,6 +529,8 @@ void Application::AddForceNormalObject(NormalObject& obja, NormalObject& objb)
 // N body functions
 void Application::InitNBody()
 {
+    _objects.clear();
+
     float universeRad = 1e18;
 
     // center heavy body central mass
