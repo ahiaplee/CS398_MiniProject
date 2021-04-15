@@ -1,6 +1,7 @@
 #pragma once
 
 #define DEFAULT_PARTICLE_SIZE 1000
+#define BLOCK_SIZE 32
 
 #define GLEW_STATIC
 #include <glew.h>
@@ -21,6 +22,13 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/matrix.hpp>
+
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
+#include <helper_cuda.h>
+#include <helper_functions.h>  // helper for shared that are common to CUDA Samples
+#include <cuda_runtime.h>
+#include <cuda_gl_interop.h>
 
 using uint = unsigned;
 
@@ -113,6 +121,21 @@ private:
 	void PrintErrors();
 	void Update();
 	void Draw();
+	void Draw_Cuda();
+
+	bool use_cuda = false;
+	bool use_changed = false;
+	NormalObject* d_Objects = 0;
+	cudaGraphicsResource* resources[1];
+	void Print_GPU_Info();
+	void Init_CudaResource(InstancedObject& obj);
+
+
+	std::vector<NormalObject> copy_objs;
+	dim3 DimBlock;
+	dim3 DimGrid2;
+
+
 
 public:
 
@@ -136,6 +159,19 @@ public:
 	void InitNBody();
 	void UpdateNBody();
 };
+
+void map_resource(cudaGraphicsResource* resource);
+
+void compute_cuda(
+	NormalObject* d_Objects,
+	cudaGraphicsResource* resource,
+	uint max_objects,
+	dim3& DimBlock,
+	dim3& DimGrid2
+);
+
+
+
 
 
 

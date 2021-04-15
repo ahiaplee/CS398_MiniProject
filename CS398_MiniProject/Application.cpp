@@ -10,6 +10,11 @@ Application::Application(int width, int height, const std::string& window_title)
 
 Application::~Application()
 {
+    if (use_cuda)
+    {
+        cudaFree(d_Objects);
+    }
+
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
@@ -19,7 +24,9 @@ Application::~Application()
 
 void Application::Start()
 {
-   
+    use_cuda = true;
+    Print_GPU_Info();
+
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
@@ -69,13 +76,7 @@ void Application::Start()
     _shaders[DEFAULT_INSTANCED]->setMat4("projection", glm::value_ptr(projection));
     _shaders[DEFAULT_INSTANCED]->setMat4("view", glm::value_ptr(view));
     
-
-
-    Init_RenderObject(_InstancedObject);
-
-
     //hardcode object to test draw
-
     //for (int i = 0; i < N; ++i)
     //{
     //    auto obj = std::make_unique<NormalObject>();
@@ -91,7 +92,58 @@ void Application::Start()
     //    _objects.push_back(std::move(obj));
     //}
     InitNBody();
+
    
+    Init_RenderObject(_InstancedObject); 
+
+
+    //cudaGraphicsMapResources(1, resources);
+    //map_resource(resources[0]);
+    //cudaGraphicsUnmapResources(1, resources);
+}
+
+void Application::Print_GPU_Info()
+{
+    cudaDeviceProp deviceProp;
+    deviceProp.major = 0;
+    deviceProp.minor = 0;
+
+    int dev = findCudaDevice(0, 0);
+
+    checkCudaErrors(cudaGetDeviceProperties(&deviceProp, dev));
+
+    printf("CUDA device [%s] has %d Multi-Processors, Compute %d.%d\n",
+        deviceProp.name, deviceProp.multiProcessorCount, deviceProp.major, deviceProp.minor);
+}
+
+void Application::Init_CudaResource(InstancedObject& objs)
+{
+
+    DimBlock = dim3 (BLOCK_SIZE, 1, 1);
+    //dim3 DimGrid2(
+    //    1, 1 , 1
+    //);
+    DimGrid2 = dim3( 
+        ceil(((float)_objects.size()) / BLOCK_SIZE),
+        1,
+        1);
+
+
+
+
+    auto size = _objects.size() * sizeof(NormalObject);
+
+
+
+
+    checkCudaErrors(cudaMalloc((void**)&d_Objects, size));
+    checkCudaErrors(cudaMemcpy(d_Objects, copy_objs.data(), size, cudaMemcpyHostToDevice));
+    cudaDeviceSynchronize();
+
+    checkCudaErrors(cudaGraphicsGLRegisterBuffer(resources, objs.transforms, cudaGraphicsMapFlagsNone));
+
+    std::cout << "test" << std::endl;
+
 }
 
 void Application::Run()
@@ -113,7 +165,12 @@ void Application::Run()
         
         //ImGui::ShowDemoWindow(false);
         Update();
-        Draw();
+
+        if (use_cuda)
+            Draw_Cuda();
+        else
+            Draw();
+
         GUI();
 
         ImGui::Render();
@@ -165,18 +222,49 @@ void Application::Init_RenderObject(InstancedObject& obj)
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
+
+
     Rebind_RenderObject(obj);
+
+
+    if (use_cuda)
+        Init_CudaResource(_InstancedObject);
 
     PrintErrors();
 }
 
-void Application::Rebind_RenderObject(InstancedObject& obj)
+void Application::Rebind_RenderObject(InstancedObject& objs)
 {
-    glBindBuffer(GL_ARRAY_BUFFER, obj.transforms);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(RenderData) * obj.datas.size(), obj.datas.data(), GL_DYNAMIC_DRAW);
+
+    if (use_cuda)
+    {
+        //precompute first set of matrices for cuda
+        objs.datas.clear();
 
 
-    glBindVertexArray(obj.VAO);
+        copy_objs.clear();
+        for (auto& object : _objects)
+        {
+            RenderData data;
+            std::copy(std::begin(object->color), std::end(object->color), data.color);
+
+            data.transform = glm::mat4(1.0f);
+            //data.transform = glm::scale(data.transform, obj->scale);
+            //data.transform = glm::rotate(data.transform, glm::radians(obj->rotate), glm::vec3(0.0, 0.0, 1.0));
+            //data.transform = glm::translate(data.transform, obj->translate);
+
+            objs.datas.push_back(data);
+            copy_objs.push_back(*object);
+        }
+    }
+
+
+
+    glBindBuffer(GL_ARRAY_BUFFER, objs.transforms);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(RenderData) * objs.datas.size(), objs.datas.data(), GL_DYNAMIC_DRAW);
+
+
+    glBindVertexArray(objs.VAO);
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(RenderData), (void*)0);
     glEnableVertexAttribArray(2);
@@ -264,6 +352,19 @@ void Application::Update()
     }
 
     UpdateNBody();
+
+    if (use_changed)
+    {
+        Rebind_RenderObject(_InstancedObject);
+
+
+        if (use_cuda)
+            Init_CudaResource(_InstancedObject);
+
+
+        use_changed = false;
+    }
+
 }
 
 void Application::Draw()
@@ -295,7 +396,32 @@ void Application::Draw()
 
     glBindVertexArray(_InstancedObject.VAO);
     glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0, static_cast<GLsizei>(_InstancedObject.datas.size()));
+
+
+
 }
+
+void Application::Draw_Cuda()
+{
+    _shaders[DEFAULT_INSTANCED]->use();
+    _shaders[DEFAULT_INSTANCED]->setMat4("view", glm::value_ptr(view));
+    _shaders[DEFAULT_INSTANCED]->setMat4("projection", glm::value_ptr(projection));
+
+    //RenderData* datas;
+    cudaGraphicsMapResources(1, resources);
+   // map_resource(resources[0]);
+
+    compute_cuda
+        (
+            d_Objects, resources[0], _objects.size(), DimBlock, DimGrid2
+        );
+    cudaGraphicsUnmapResources(1, resources);
+    
+
+    glBindVertexArray(_InstancedObject.VAO);
+    glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0, 1000);
+}
+
 
 void Application::GUI()
 {
@@ -356,6 +482,11 @@ void Application::GUI()
             ImGui::ColorButton("Heavy Object", ImVec4{ 1.0f, 1.0f, 1.0f, 1.0f });
             ImGui::SameLine();
             ImGui::ColorButton("Light Object", ImVec4{ endColor.r, endColor.g, endColor.b, 1.0f });
+
+        if (ImGui::Checkbox("Use cuda", &use_cuda))
+        {
+            use_changed = true;
+
         }
     }
     ImGui::End();
