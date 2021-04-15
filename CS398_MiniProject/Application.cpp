@@ -76,21 +76,21 @@ void Application::Start()
 
     //hardcode object to test draw
 
-    for (int i = 0; i < 1000; ++i)
-    {
-        auto obj = std::make_unique<NormalObject>();
-        obj->translate = glm::vec3{
-            RAND_FLOAT (-100.0f, 100.0f),
-            RAND_FLOAT (-100.0f, 100.0f),
-            0.0f//RAND_FLOAT (-10.0f, 10.0f)
-        };
-        obj->color[0] = RAND_FLOAT(0.0f, 1.0f);
-        obj->color[1] = RAND_FLOAT(0.0f, 1.0f);
-        obj->color[2] = RAND_FLOAT(0.0f, 1.0f);
-        obj->color[3] = 1.0f;
-        _objects.push_back(std::move(obj));
-    }
-
+    //for (int i = 0; i < N; ++i)
+    //{
+    //    auto obj = std::make_unique<NormalObject>();
+    //    obj->translate = glm::vec3{
+    //        RAND_FLOAT (-100.0f, 100.0f),
+    //        RAND_FLOAT (-100.0f, 100.0f),
+    //        0.0f//RAND_FLOAT (-10.0f, 10.0f)
+    //    };
+    //    obj->color[0] = RAND_FLOAT(0.0f, 1.0f);
+    //    obj->color[1] = RAND_FLOAT(0.0f, 1.0f);
+    //    obj->color[2] = RAND_FLOAT(0.0f, 1.0f);
+    //    obj->color[3] = 1.0f;
+    //    _objects.push_back(std::move(obj));
+    //}
+    InitNBody();
    
 }
 
@@ -263,6 +263,7 @@ void Application::Update()
         );
     }
 
+    UpdateNBody();
 }
 
 void Application::Draw()
@@ -298,10 +299,127 @@ void Application::Draw()
 
 void Application::GUI()
 {
+    size_t NValuesAvail[4] = { 100, 500, 1000, 5000 };
+    const char* NValues[4] = { "100", "500", "1000", "5000" };
+    static const char* NCurrent = "1000";
+    static int currIndex = 2;
     if (ImGui::Begin("Tools"))
     {
         ImGui::Text("FPS: %f", _fps);
         ImGui::Text("Frame Time: %f", _deltaTime);
+        if (ImGui::BeginCombo("N Value", NCurrent))
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                if (ImGui::Selectable(NValues[i], i == currIndex))
+                {
+                    currIndex = i;
+                    NCurrent = NValues[i];
+                    N = NValuesAvail[i];
+                    _objects.clear();
+                    InitNBody();
+                }
+            }
+            ImGui::EndCombo();
+        }
     }
     ImGui::End();
+}
+
+// individual body functions
+float Application::InitialForceCalcNormalObject(const glm::vec2& pv)
+{
+    return sqrtf(G * (7500.0f / (float(N*N))) * solarMass / glm::length(pv));
+}
+void Application::UpdateNormalObject(NormalObject& obj)
+{
+    obj.velocity += (float)_deltaTime * obj.force;
+    obj.translate += (float)_deltaTime * glm::vec3(obj.velocity.x, obj.velocity.y, 0.0f);
+}
+void Application::ResetForceNormalObject(NormalObject& obj)
+{
+    obj.force = glm::vec2(0.0f, 0.0f);
+}
+void Application::AddForceNormalObject(NormalObject& obja, NormalObject& objb)
+{
+    static float softeningsq = 3.0f * 3.0f;
+    glm::vec2 difference = objb.translate - obja.translate;
+    float magnitudesq = difference.x * difference.x + difference.y * difference.y;
+    float F = (G * obja.mass * objb.mass) / (magnitudesq + softeningsq);
+    obja.force += F / sqrtf(magnitudesq) * difference;
+}
+
+// N body functions
+void Application::InitNBody()
+{
+    float universeRad = 1e18;
+
+    // center heavy body central mass
+    auto first = std::make_unique<NormalObject>();
+    first->translate = glm::vec3{ 0.0f, 0.0f, 0.0f };
+    first->velocity = glm::vec2{ 0.0f, 0.0f };
+    first->mass = solarMass;
+    first->color[0] = 1.0f;
+    first->color[1] = 1.0f;
+    first->color[2] = 1.0f;
+    first->color[3] = 1.0f;
+    _objects.push_back(std::move(first));
+
+    for (size_t i = 1; i < N; ++i)
+    {
+        auto obj = std::make_unique<NormalObject>();
+        //obj->translate = glm::vec3{
+        //	RAND_FLOAT(-100.0f, 100.0f),
+        //	RAND_FLOAT(-100.0f, 100.0f),
+        //	0.0f//RAND_FLOAT (-10.0f, 10.0f)
+        //};
+        //obj->color[0] = RAND_FLOAT(0.0f, 1.0f);
+        //obj->color[1] = RAND_FLOAT(0.0f, 1.0f);
+        //obj->color[2] = RAND_FLOAT(0.0f, 1.0f);
+        //obj->color[3] = 1.0f;
+
+        // swap btw 1e2f and 1e3f both look okay
+        float pvCoefficient = 1e2f * EXP(-1.8f);
+        glm::vec2 pv{ RAND_FLOAT(-0.5f, 0.5f), RAND_FLOAT(-0.5f, 0.5f) };
+        glm::vec2 position = pvCoefficient * pv;
+        //std::cout << "Index " << i << ": (" << position.x << ", " << position.y << ")" << std::endl;
+        obj->translate = glm::vec3{ position, 0.0f }; /* obj translate */
+        float magnitude = InitialForceCalcNormalObject(position);
+
+        float absAngle = atanf(fabsf(pv.y / pv.x));
+        float vTheta = glm::half_pi<float>() - absAngle;
+        float vPhi = RAND_FLOAT(0.0f, glm::pi<float>());
+        glm::vec2 v{ (position.y >= 0.0f ? position.y > 0.0f ? -1.0f : 0.0f : 1.0f) * cosf(vTheta) * magnitude,
+            (position.x >= 0.0f ? position.x > 0.0f ? 1.0f : 0.0f : -1.0f) * sinf(vTheta) * magnitude };
+        if (RAND_FLOAT(0.0f, 1.0f) >= 0.5f) v *= -1.0f;
+        obj->velocity = v; /* obj velocity */
+
+        obj->mass = RAND_FLOAT(0.0f, solarMass) * 10.0f; /* obj mass */
+
+        float massConstant = solarMass * 10.0f;
+        float colorCoefficient = floorf(obj->mass * 254.0f / massConstant) / 255.0f;
+        obj->color[0] = colorCoefficient * RAND_FLOAT(0.0f, 1.0f);
+        obj->color[1] = colorCoefficient * RAND_FLOAT(0.0f, 1.0f);
+        obj->color[2] = colorCoefficient * RAND_FLOAT(0.0f, 1.0f);
+        obj->color[3] = 1.0f; /* obj color */
+
+        _objects.push_back(std::move(obj));
+    }
+}
+void Application::UpdateNBody()
+{
+    for (size_t i = 0; i < N; ++i)
+    {
+        ResetForceNormalObject(*_objects[i]);
+        // N squared algo
+        for (size_t j = 0; j < N; ++j)
+            if (i != j) AddForceNormalObject(*_objects[i], *_objects[j]);
+    }
+    for (size_t i = 0; i < N; ++i)
+    {
+        UpdateNormalObject(*_objects[i]);
+    }
+
+    //std::cout << "Object 1: (" << _objects[1]->translate.x << ", " 
+    //    << _objects[1]->translate.y << " " << _objects[1]->translate.z << ")" << std::endl;
 }

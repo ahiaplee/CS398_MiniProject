@@ -30,6 +30,11 @@ inline float RAND_FLOAT(float LO, float HI)
 	return LO + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (HI - LO)));
 }
 
+inline float EXP(float lambda)
+{
+	return -logf(1.0f - RAND_FLOAT(0.0f, 1.0f)) / lambda;
+}
+
 enum ShaderTypes
 {
 	DEFAULT_INSTANCED
@@ -39,7 +44,12 @@ struct NormalObject
 {
 	glm::vec3 scale = {1.0f, 1.0f, 1.0f};
 	float rotate = 0.0f;
-	glm::vec3 translate = { 0.0f, 0.0f, 0.0f };
+	glm::vec3 translate = { 0.0f, 0.0f, 0.0f }; // position
+
+	glm::vec2 velocity = { 0.0f, 0.0f };
+	glm::vec2 force = { 0.0f, 0.0f };
+	float mass = 1.0f;
+
 	float color[4] = { 1.0f,1.0f,1.0f,1.0f };
 };
 
@@ -81,6 +91,9 @@ private:
 	glm::vec3 eye{ 0,0, 25.0f };
 	glm::vec3 target{ 0,0,0 };
 
+	size_t N = 1000;
+	float G = /*6.673e-4f*/ 52017.875f;
+	float solarMass = 1.98892e-3f;
 
 	std::unordered_map<ShaderTypes, std::unique_ptr<Shader>> _shaders;
 
@@ -108,6 +121,15 @@ public:
 	void Start();
 	void Run();
 
+	// individual body functions
+	float InitialForceCalcNormalObject(const glm::vec2& pv);
+	void UpdateNormalObject(NormalObject& obj);
+	void ResetForceNormalObject(NormalObject& obj);
+	void AddForceNormalObject(NormalObject& obja, NormalObject& objb);
+
+	// N body functions
+	void InitNBody();
+	void UpdateNBody();
 };
 
 
