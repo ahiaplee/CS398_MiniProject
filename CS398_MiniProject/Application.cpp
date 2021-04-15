@@ -60,8 +60,8 @@ void Application::Start()
 
     projection = glm::perspective(glm::radians(45.0f), (float)_width / (float)_height, 0.1f, 1000.0f);
     view = glm::lookAt(
-        glm::vec3{ 0,0, 25.0f },
-        glm::vec3{ 0,0,0 },
+        eye,
+        target,
         glm::vec3{ 0,1.0f,0.0f }
     );
 
@@ -76,14 +76,18 @@ void Application::Start()
 
     //hardcode object to test draw
 
-    for (int i = 0; i < 100; ++i)
+    for (int i = 0; i < 1000; ++i)
     {
         auto obj = std::make_unique<NormalObject>();
         obj->translate = glm::vec3{
-            RAND_FLOAT (-10.0f, 10.0f),
-            RAND_FLOAT (-10.0f, 10.0f),
+            RAND_FLOAT (-100.0f, 100.0f),
+            RAND_FLOAT (-100.0f, 100.0f),
             0.0f//RAND_FLOAT (-10.0f, 10.0f)
         };
+        obj->color[0] = RAND_FLOAT(0.0f, 1.0f);
+        obj->color[1] = RAND_FLOAT(0.0f, 1.0f);
+        obj->color[2] = RAND_FLOAT(0.0f, 1.0f);
+        obj->color[3] = 1.0f;
         _objects.push_back(std::move(obj));
     }
 
@@ -108,6 +112,7 @@ void Application::Run()
 
         
         //ImGui::ShowDemoWindow(false);
+        Update();
         Draw();
         GUI();
 
@@ -168,23 +173,31 @@ void Application::Init_RenderObject(InstancedObject& obj)
 void Application::Rebind_RenderObject(InstancedObject& obj)
 {
     glBindBuffer(GL_ARRAY_BUFFER, obj.transforms);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4) * obj.datas.size(), obj.datas.data(), GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(RenderData) * obj.datas.size(), obj.datas.data(), GL_DYNAMIC_DRAW);
 
 
     glBindVertexArray(obj.VAO);
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)0);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(RenderData), (void*)0);
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(sizeof(glm::vec4)));
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(RenderData), (void*)(sizeof(glm::vec4)));
     glEnableVertexAttribArray(3);
-    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(2 * sizeof(glm::vec4)));
+    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(RenderData), (void*)(2 * sizeof(glm::vec4)));
     glEnableVertexAttribArray(4);
-    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(3 * sizeof(glm::vec4)));
+    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(RenderData), (void*)(3 * sizeof(glm::vec4)));
+
+    PrintErrors();
+
+    glEnableVertexAttribArray(5);
+    glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(RenderData), (void*)(4 * sizeof(glm::vec4)));
+
+    PrintErrors();
 
     glVertexAttribDivisor(1, 1);	// Divisor Mat4x4
     glVertexAttribDivisor(2, 1);	// Divisor Mat4x4
     glVertexAttribDivisor(3, 1);	// Divisor Mat4x4
     glVertexAttribDivisor(4, 1);	// Divisor Mat4x4
+    glVertexAttribDivisor(5, 1);	// Divisor Mat4x4
     //glVertexAttribDivisor(8, 1);	// Divisor Vec4
     //glVertexAttribDivisor(9, 1);	// Divisor Vec4
 
@@ -214,6 +227,41 @@ void Application::PrintErrors()
 
 void Application::Update()
 {
+    bool view_changed = false;
+
+    if (glfwGetKey(_window, GLFW_KEY_W) == GLFW_PRESS)
+    {
+        eye.z -= 0.05f;
+        view_changed = true;
+    }
+    if (glfwGetKey(_window, GLFW_KEY_S) == GLFW_PRESS)
+    {
+        eye.z += 0.05f;
+        view_changed = true;
+    }
+
+    if (glfwGetKey(_window, GLFW_KEY_A) == GLFW_PRESS)
+    {
+        eye.x -= 0.05f;
+        target.x -= 0.05f;
+        view_changed = true;
+    }
+
+    if (glfwGetKey(_window, GLFW_KEY_D) == GLFW_PRESS)
+    {
+        eye.x += 0.05f;
+        target.x += 0.05f;
+        view_changed = true;
+    }
+
+    if (view_changed)
+    {
+        view = glm::lookAt(
+            eye,
+            target,
+            glm::vec3{ 0,1.0f,0.0f }
+        );
+    }
 
 }
 
@@ -222,16 +270,19 @@ void Application::Draw()
     _InstancedObject.datas.clear();
     for (auto& obj : _objects)
     {
-        glm::mat4 transform = glm::mat4(1.0f);
-        transform = glm::scale(transform, obj->scale);
-        transform = glm::rotate(transform, glm::radians(obj->rotate), glm::vec3(0.0, 0.0, 1.0));
-        transform = glm::translate(transform, obj->translate);
+        RenderData data;
+        std::copy(std::begin(obj->color), std::end(obj->color), data.color);
+
+        data.transform = glm::mat4(1.0f);
+        data.transform = glm::scale(data.transform, obj->scale);
+        data.transform = glm::rotate(data.transform, glm::radians(obj->rotate), glm::vec3(0.0, 0.0, 1.0));
+        data.transform = glm::translate(data.transform, obj->translate);
         //auto ptr = glm::value_ptr(transform);
 
         //for (int i = 0; i < 16; i += 4)
         //    std::cout << ptr[i] << ptr[i+1] << ptr[i+2] << ptr[i+3] << std::endl;
 
-        _InstancedObject.datas.push_back(transform);
+        _InstancedObject.datas.push_back(data);
     }
 
     Rebind_RenderObject(_InstancedObject);
