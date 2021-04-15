@@ -12,7 +12,7 @@ Application::Application(int width, int height, const std::string& window_title)
 
 Application::~Application()
 {
-    if (use_cuda)
+    if (d_Objects)
     {
         cudaFree(d_Objects);
     }
@@ -26,7 +26,7 @@ Application::~Application()
 
 void Application::Start()
 {
-    use_cuda = false;
+    use_cuda = true;
     Print_GPU_Info();
 
     glfwInit();
@@ -62,7 +62,7 @@ void Application::Start()
 
     //Shader* shader = new Shader("VS.vert", "FS.frag");
     _shaders.emplace(
-        ShaderTypes::DEFAULT_INSTANCED, 
+        DEFAULT_INSTANCED, 
         std::move(std::make_unique<Shader>("VS.vert", "FS.frag"))
     );
 
@@ -102,9 +102,6 @@ void Application::Init_CudaResource(InstancedObject& objs)
 {
 
     DimBlock = dim3 (BLOCK_SIZE, 1, 1);
-    //dim3 DimGrid2(
-    //    1, 1 , 1
-    //);
     DimGrid2 = dim3( 
         ceil(((float)_objects.size()) / BLOCK_SIZE),
         1,

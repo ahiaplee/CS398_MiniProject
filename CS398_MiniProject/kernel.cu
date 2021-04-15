@@ -1,16 +1,5 @@
 #include "Application.h"
 
-//__device__ RenderData* cuda_data = NULL;
-
-//void map_resource(cudaGraphicsResource * resource)
-//{
-//	size_t size;
-//	
-//	cudaGraphicsResourceGetMappedPointer((void**)(&cuda_data), &size, resource);
-//	printf("Can access %d @ %p\n", size, cuda_data);
-//	getLastCudaError("map_resource failed\n");
-//}
-
 __device__ void GPU_AddForceNormalObject(NormalObject& obja, NormalObject& objb, float G)
 {
 	static float softeningsq = 3.0f * 3.0f;
@@ -33,9 +22,6 @@ __global__ void compute_kernel(
 	float G,
 	float _deltaTime,
 	bool _useBaseColor
-	//,
-	//cudaGraphicsResource* resource,
-	//uint max_objects
 )
 {
 	uint x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -93,8 +79,6 @@ void compute_cuda(
 	RenderData* cuda_data;
 	size_t size;
 	cudaGraphicsResourceGetMappedPointer((void**)(&cuda_data), &size, resource);
-	//printf("Can access %d @ %p\n", size, cuda_data);
-
 
 	compute_kernel << < DimGrid2, DimBlock >> >
 		(
@@ -104,8 +88,6 @@ void compute_cuda(
 			G,
 			_deltaTime,
 			_useBaseColor
-			//resource,
-			//max_objects,
 		);
 	getLastCudaError("compute_kernel failed\n");
 	cudaDeviceSynchronize();
