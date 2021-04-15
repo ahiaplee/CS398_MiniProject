@@ -17,7 +17,7 @@ __device__ void UpdateNormalObject(NormalObject& obj, float _deltaTime)
 
 __global__ void compute_kernel(
 	NormalObject* d_Objects,
-	RenderData* cuda_data,
+	RenderData* vbo_data,
 	size_t N,
 	float G,
 	float _deltaTime,
@@ -27,7 +27,7 @@ __global__ void compute_kernel(
 	uint x = blockIdx.x * blockDim.x + threadIdx.x;
 	uint y = blockIdx.y * blockDim.y + threadIdx.y;
 
-	RenderData& data = cuda_data[x];
+	RenderData& data = vbo_data[x];
 	NormalObject* obj = &(d_Objects[x]);
 
 

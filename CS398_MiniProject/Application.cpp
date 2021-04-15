@@ -413,7 +413,7 @@ void Application::Draw_Cuda()
     
 
     glBindVertexArray(_InstancedObject.VAO);
-    glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0, 1000);
+    glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0, _objects.size());
 }
 
 
