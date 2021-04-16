@@ -26,7 +26,7 @@ Application::~Application()
 
 void Application::Start()
 {
-    use_cuda = true;
+    use_cuda = false;
     Print_GPU_Info();
 
     glfwInit();
@@ -57,6 +57,7 @@ void Application::Start()
     ImGui_ImplGlfw_InitForOpenGL(_window, true);
     ImGui_ImplOpenGL3_Init("#version 450 core");
     glfwSwapInterval(0);
+    glfwMaximizeWindow(_window);
 
 
 
@@ -123,6 +124,7 @@ void Application::Init_CudaResource(InstancedObject& objs)
 
 void Application::Run()
 {
+
     while (!glfwWindowShouldClose(_window))
     {
         _startTime = glfwGetTime();
@@ -155,7 +157,23 @@ void Application::Run()
        
         auto endTime = glfwGetTime();
         _deltaTime = endTime - _startTime;
-        _fps = 1 / _deltaTime;
+        //_fps = 1 / _deltaTime;
+
+        if (updateTime < 0.0f)
+        {
+            _fps = 1 / (accuDelta / accuCount);
+            updateTime = 1.0f;
+            accuCount = 0;
+            accuDelta = 0;
+        }
+        else
+        {
+            accuDelta += _deltaTime;
+            updateTime -= _deltaTime;
+            ++accuCount;
+        }
+          
+       
     }
 }
 
@@ -426,7 +444,7 @@ void Application::GUI()
 {
     size_t NValuesAvail[3] = { 500, 1000, 5000 };
     const char* NValues[3] = { "500", "1000", "5000" };
-    static const char* NCurrent = "1000";
+    static const char* NCurrent = "500";
     static int currIndex = 1;
 
     static bool colorGradient = false;
