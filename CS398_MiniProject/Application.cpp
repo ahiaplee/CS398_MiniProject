@@ -505,10 +505,10 @@ float Application::InitialForceCalcNormalObject(const glm::vec2& pv)
 {
     // math time
     /* This function will determine the magnitude of the initial velocity
-       vector of the body, given the position within the unit square it was
+       vector of the body, given the position within the unit circle it was
        initially generated in.
 
-       Given the universe as a unit square, the central body is in the origin.
+       Given the universe as a unit circle, the central body is in the origin.
        The length of pv gives an idea of how far the object is from the center,
        with the furtherst it could be being sqrt(0.5) units away, given that
        we are treating the bodies to be within a ciruclar orbit (circle of radius
@@ -583,7 +583,7 @@ void Application::InitNBody()
     auto first = std::make_unique<NormalObject>(); // make an object
     first->translate = glm::vec3{ 0.0f, 0.0f, 0.0f }; // center of the world
     first->velocity = glm::vec2{ 0.0f, 0.0f }; // no movement
-    first->mass = solarMass; // heaviest mass possible
+    first->mass = solarMass; // predetermined solar mass
         // main color of object
     first->altcolor[0] = 1.0f; 
     first->altcolor[1] = 1.0f;
