@@ -109,6 +109,11 @@ void Application::Init_CudaResource(InstancedObject& objs)
 
     auto size = _objects.size() * sizeof(NormalObject);
 
+    if (d_Objects)
+    {
+        checkCudaErrors(cudaFree(d_Objects));
+    }
+
     checkCudaErrors(cudaMalloc((void**)&d_Objects, size));
     checkCudaErrors(cudaMemcpy(d_Objects, copy_objs.data(), size, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaDeviceSynchronize());

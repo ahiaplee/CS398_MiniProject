@@ -25,42 +25,40 @@ __global__ void compute_kernel(
 )
 {
 	uint x = blockIdx.x * blockDim.x + threadIdx.x;
-	uint y = blockIdx.y * blockDim.y + threadIdx.y;
 
-	RenderData& data = vbo_data[x];
-	NormalObject* obj = &(d_Objects[x]);
-
-
-	obj->force = glm::vec2(0.0f, 0.0f);
-	for (size_t j = 0; j < N; ++j)
-		if (x != j) GPU_AddForceNormalObject(d_Objects[x], d_Objects[j], G);
-
-
-	UpdateNormalObject(d_Objects[x], _deltaTime);
-	
-	data.transform = glm::mat4(1.0f);
-	data.transform = glm::scale(data.transform, obj->scale);
-	data.transform = glm::rotate(data.transform, glm::radians(obj->rotate), glm::vec3(0.0, 0.0, 1.0));
-	data.transform = glm::translate(data.transform, obj->translate);
-
-	if (_useBaseColor)
+	if (x < N)
 	{
-		data.color[0] = obj->basecolor[0];
-		data.color[1] = obj->basecolor[1];
-		data.color[2] = obj->basecolor[2];
-		data.color[3] = obj->basecolor[3];
+		RenderData& data = vbo_data[x];
+		NormalObject* obj = &(d_Objects[x]);
+
+
+		obj->force = glm::vec2(0.0f, 0.0f);
+		for (size_t j = 0; j < N; ++j)
+			if (x != j) GPU_AddForceNormalObject(d_Objects[x], d_Objects[j], G);
+
+
+		UpdateNormalObject(d_Objects[x], _deltaTime);
+
+		data.transform = glm::mat4(1.0f);
+		data.transform = glm::scale(data.transform, obj->scale);
+		data.transform = glm::rotate(data.transform, glm::radians(obj->rotate), glm::vec3(0.0, 0.0, 1.0));
+		data.transform = glm::translate(data.transform, obj->translate);
+
+		if (_useBaseColor)
+		{
+			data.color[0] = obj->basecolor[0];
+			data.color[1] = obj->basecolor[1];
+			data.color[2] = obj->basecolor[2];
+			data.color[3] = obj->basecolor[3];
+		}
+		else
+		{
+			data.color[0] = obj->altcolor[0];
+			data.color[1] = obj->altcolor[1];
+			data.color[2] = obj->altcolor[2];
+			data.color[3] = obj->altcolor[3];
+		}
 	}
-	else
-	{
-		data.color[0] = obj->altcolor[0];
-		data.color[1] = obj->altcolor[1];
-		data.color[2] = obj->altcolor[2];
-		data.color[3] = obj->altcolor[3];
-	}
-	//data.color[0] = 1.0f;
-	//data.color[1] = 0.0f;
-	//data.color[2] = 0.0f;
-	//data.color[3] = 1.0f;
 
 }
 
