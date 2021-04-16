@@ -104,7 +104,7 @@ private:
 	glm::vec3 eye{ 0,0, 300.0f };
 	glm::vec3 target{ 0,0,0 };
 
-	size_t N = 500;
+	size_t N = 1000;
 	float G = /*6.673e-4f*/ 52017.875f;
 	float solarMass = 1.98892e-3f;
 

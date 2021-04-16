@@ -144,7 +144,7 @@ void Application::Run()
         Update();
 
         if (use_cuda)
-            Draw_Cuda();
+            Draw_Cuda(); 
         else
             Draw();
 
@@ -444,7 +444,7 @@ void Application::GUI()
 {
     size_t NValuesAvail[3] = { 500, 1000, 5000 };
     const char* NValues[3] = { "500", "1000", "5000" };
-    static const char* NCurrent = "500";
+    static const char* NCurrent = "1000";
     static int currIndex = 1;
 
     static bool colorGradient = false;
