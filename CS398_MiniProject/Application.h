@@ -154,7 +154,6 @@ public:
 	// individual body functions
 	float InitialForceCalcNormalObject(const glm::vec2& pv);
 	void UpdateNormalObject(NormalObject& obj);
-	void ResetForceNormalObject(NormalObject& obj);
 	void AddForceNormalObject(NormalObject& obja, NormalObject& objb);
 
 	// N body functions
