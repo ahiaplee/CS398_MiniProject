@@ -442,8 +442,8 @@ void Application::Draw_Cuda()
 
 void Application::GUI()
 {
-    size_t NValuesAvail[3] = { 500, 1000, 5000 };
-    const char* NValues[3] = { "500", "1000", "5000" };
+    size_t NValuesAvail[4] = { 500, 1000, 5000, 10000 };
+    const char* NValues[4] = { "500", "1000", "5000", "10000" };
     static const char* NCurrent = "1000";
     static int currIndex = 1;
 
@@ -472,7 +472,7 @@ void Application::GUI()
         
         if (ImGui::BeginCombo("N Value", NCurrent))
         {
-            for (int i = 0; i < 3; ++i)
+            for (int i = 0; i < 4; ++i)
             {
                 if (ImGui::Selectable(NValues[i], i == currIndex))
                 {
