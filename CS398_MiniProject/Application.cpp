@@ -1,7 +1,24 @@
+/*Start Header
+******************************************************************/
+/*!
+\file Application.cpp
+\author ANG HIAP LEE, a.hiaplee, 390000318
+        Chloe Lim Jia-Han, j.lim, 440003018
+\par a.hiaplee\@digipen.edu
+\date 19/4/2021
+\brief	Implementation for application framework
+Copyright (C) 2021 DigiPen Institute of Technology.
+Reproduction or disclosure of this file or its contents without the
+prior written consent of DigiPen Institute of Technology is prohibited.
+*/
+/* End Header
+*******************************************************************/
+
 #include "Application.h"
 
 float camera_speed = 100.0f;
 
+//Constructor
 Application::Application(int width, int height, const std::string& window_title):
 	_width {width},
 	_height { height },
@@ -10,6 +27,7 @@ Application::Application(int width, int height, const std::string& window_title)
 {
 }
 
+//Destructor
 Application::~Application()
 {
     if (d_Objects)
@@ -24,8 +42,12 @@ Application::~Application()
 	glfwTerminate();
 }
 
+//Init functions for framework
 void Application::Start()
 {
+    //Standard gflw init statements
+
+    //init cuda info
     use_cuda = false;
     Print_GPU_Info();
 
@@ -79,12 +101,16 @@ void Application::Start()
     _shaders[DEFAULT_INSTANCED]->setMat4("projection", glm::value_ptr(projection));
     _shaders[DEFAULT_INSTANCED]->setMat4("view", glm::value_ptr(view));
     
+
+    //Init objects for simulation
     InitNBody();
 
-   
+   //prep rendering data
     Init_RenderObject(_InstancedObject); 
 }
 
+
+//helper function to print gpu info
 void Application::Print_GPU_Info()
 {
     cudaDeviceProp deviceProp;
@@ -99,29 +125,36 @@ void Application::Print_GPU_Info()
         deviceProp.name, deviceProp.multiProcessorCount, deviceProp.major, deviceProp.minor);
 }
 
+//helper function to allocate device memory and resources for VBO binding
 void Application::Init_CudaResource(InstancedObject& objs)
 {
-
+    //create block and grid
     DimBlock = dim3 (BLOCK_SIZE, 1, 1);
     DimGrid2 = dim3( 
-        ceil(((float)_objects.size()) / BLOCK_SIZE),
+        (unsigned int)ceil(((float)_objects.size()) / BLOCK_SIZE),
         1,
         1);
 
     auto size = _objects.size() * sizeof(NormalObject);
 
+    //free memory if we already own one
     if (d_Objects)
     {
         checkCudaErrors(cudaFree(d_Objects));
     }
 
+    //allocate memory space for objects
     checkCudaErrors(cudaMalloc((void**)&d_Objects, size));
     checkCudaErrors(cudaMemcpy(d_Objects, copy_objs.data(), size, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaDeviceSynchronize());
+
+    //register the VBO with the cuda so cuda can write into it later
     checkCudaErrors(cudaGraphicsGLRegisterBuffer(resources, objs.transforms, cudaGraphicsMapFlagsNone));
 
 }
 
+
+//Application loop
 void Application::Run()
 {
 
@@ -143,6 +176,8 @@ void Application::Run()
         //ImGui::ShowDemoWindow(false);
         Update();
 
+
+        //which draw mode to use
         if (use_cuda)
             Draw_Cuda(); 
         else
@@ -177,6 +212,7 @@ void Application::Run()
     }
 }
 
+//helper function to reset simulation
 void Application::Reset()
 {
     InitNBody();
@@ -196,6 +232,7 @@ void Application::InputProcess(GLFWwindow* window)
         glfwSetWindowShouldClose(window, true);
 }
 
+//helper function to init rendering data for OpenGL
 void Application::Init_RenderObject(InstancedObject& obj)
 {
     glGenVertexArrays(1, &obj.VAO);
@@ -228,17 +265,17 @@ void Application::Init_RenderObject(InstancedObject& obj)
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-
-
+    //binding object buffer with opengl for drawing
     Rebind_RenderObject(obj);
 
-
+    //if we are using cuda, init the cuda resources
     if (use_cuda)
         Init_CudaResource(_InstancedObject);
 
     PrintErrors();
 }
 
+//Helper function for binding object buffer with opengl for drawing
 void Application::Rebind_RenderObject(InstancedObject& objs)
 {
 
@@ -291,13 +328,12 @@ void Application::Rebind_RenderObject(InstancedObject& objs)
     glVertexAttribDivisor(2, 1);	// Divisor Mat4x4
     glVertexAttribDivisor(3, 1);	// Divisor Mat4x4
     glVertexAttribDivisor(4, 1);	// Divisor Mat4x4
-    glVertexAttribDivisor(5, 1);	// Divisor Mat4x4
-    //glVertexAttribDivisor(8, 1);	// Divisor Vec4
-    //glVertexAttribDivisor(9, 1);	// Divisor Vec4
+    glVertexAttribDivisor(5, 1);	// Divisor Vec4
 
-    
+  
 }
 
+//helper function to print errors
 void Application::PrintErrors()
 {
 
@@ -319,46 +355,45 @@ void Application::PrintErrors()
     }
 }
 
+//update function for application
 void Application::Update()
 {
-    
-
     if (glfwGetKey(_window, GLFW_KEY_Q) == GLFW_PRESS)
     {
-        eye.z -= camera_speed * _deltaTime;
+        eye.z -= camera_speed * (float)_deltaTime;
         view_changed = true;
     }
     if (glfwGetKey(_window, GLFW_KEY_E) == GLFW_PRESS)
     {
-        eye.z += camera_speed * _deltaTime;
+        eye.z += camera_speed * (float)_deltaTime;
         view_changed = true;
     }
 
     if (glfwGetKey(_window, GLFW_KEY_W) == GLFW_PRESS)
     {
-        eye.y += camera_speed * _deltaTime;
-        target.y += camera_speed * _deltaTime;
+        eye.y += camera_speed * (float)_deltaTime;
+        target.y += camera_speed * (float)_deltaTime;
         view_changed = true;
     }
 
     if (glfwGetKey(_window, GLFW_KEY_S) == GLFW_PRESS)
     {
-        eye.y -= camera_speed * _deltaTime;
-        target.y -= camera_speed * _deltaTime;
+        eye.y -= camera_speed * (float)_deltaTime;
+        target.y -= camera_speed * (float)_deltaTime;
         view_changed = true;
     }
 
     if (glfwGetKey(_window, GLFW_KEY_A) == GLFW_PRESS)
     {
-        eye.x -= camera_speed * _deltaTime;
-        target.x -= camera_speed * _deltaTime;
+        eye.x -= camera_speed * (float)_deltaTime;
+        target.x -= camera_speed * (float)_deltaTime;
         view_changed = true;
     }
 
     if (glfwGetKey(_window, GLFW_KEY_D) == GLFW_PRESS)
     {
-        eye.x += camera_speed * _deltaTime;
-        target.x += camera_speed * _deltaTime;
+        eye.x += camera_speed * (float)_deltaTime;
+        target.x += camera_speed * (float)_deltaTime;
         view_changed = true;
     }
 
@@ -381,6 +416,7 @@ void Application::Update()
 
 }
 
+//normal draw function, uses CPU to run simulation and calculate transformation matrices
 void Application::Draw()
 {
     _InstancedObject.datas.clear();
@@ -415,6 +451,7 @@ void Application::Draw()
 
 }
 
+//CUDA draw mode this simply calls the cuda kernel to handle all the major workload
 void Application::Draw_Cuda()
 {
     _shaders[DEFAULT_INSTANCED]->use();
@@ -425,21 +462,25 @@ void Application::Draw_Cuda()
 
     if (!pause)
     {
-        cudaGraphicsMapResources(1, resources);
+        cudaGraphicsMapResources(1, resources); //map the registered resource for use
+
+        //call kernel through helper function
         compute_cuda
         (
-            d_Objects, resources[0], _objects.size(), DimBlock, DimGrid2, N, G, _deltaTime, useBaseColor
+            d_Objects, resources[0], DimBlock, DimGrid2, N, G, (float)_deltaTime, useBaseColor
         );
-        cudaGraphicsUnmapResources(1, resources);
+
+
+        cudaGraphicsUnmapResources(1, resources); //unmap the resource once done
     }
 
     
 
     glBindVertexArray(_InstancedObject.VAO);
-    glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0, _objects.size());
+    glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0, (GLsizei)_objects.size());
 }
 
-
+//helper function to draw GUI
 void Application::GUI()
 {
     size_t NValuesAvail[4] = { 500, 1000, 5000, 10000 };
@@ -522,3 +563,5 @@ void Application::GUI()
         ImGui::End();
     }
 }
+
+
